@@ -75,10 +75,10 @@ def answer_ticket(message):
             response = parts[2].strip()
             
             bot.send_message(user_id, f"💬 Ответ на вашу заявку:\n{response}", parse_mode='Markdown')
-            bot.reply_to(message, f"✅ Ответ отправлен пользователю {user_id}.")
+            bot.reply_to(message, f"✅ Ответ отправлен пользователю {user_id}.\nЗаявка №{unique_id[:8]} закрыта.", parse_mode='Markdown')
             open_tickets.remove(found_ticket)  # Убираем заявку сразу после отправки ответа
         else:
-            bot.reply_to(message, f'Заявка с идентификатором "{unique_id}" не найдена.\nПроверьте список открытых заявок с помощью команды `/showtickets`.')  # Подробное сообщение
+            bot.reply_to(message, f'Заявка с идентификатором "{unique_id}" не найдена.\nВозможно, она уже была закрыта другим оператором.', parse_mode='Markdown')
     else:
         bot.reply_to(message, 'Доступ запрещён.')
 
@@ -98,9 +98,9 @@ def close_ticket(message):
             open_tickets.remove(found_ticket)
             user_id = found_ticket["user_id"]
             bot.send_message(user_id, 'Ваша заявка успешно закрыта.', parse_mode='Markdown')
-            bot.reply_to(message, f"✅ Заявка №{unique_id[:8]} закрыта.")
+            bot.reply_to(message, f"✅ Заявка №{unique_id[:8]} закрыта.", parse_mode='Markdown')
         else:
-            bot.reply_to(message, f'Заявка с идентификатором "{unique_id}" не найдена.\nПроверьте список открытых заявок с помощью команды `/showtickets`.')  # Подробное сообщение
+            bot.reply_to(message, f'Заявка с идентификатором "{unique_id}" не найдена.\nВозможно, она уже была закрыта другим оператором.', parse_mode='Markdown')
     else:
         bot.reply_to(message, 'Доступ запрещён.')
 
