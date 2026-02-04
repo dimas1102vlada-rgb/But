@@ -9,6 +9,7 @@ token = '8230675731:AAG802jRLKPhzsAbJ5Iv98N_sMHoh0f0nqk'      # Подробне
 
 # MySQL Database
 mysql_host = 'mysql-19f68168-dimas1102vlada-0b83.b.aivencloud.com'
+mysql_port = '18075'
 mysql_db   = 'defaultdb'
 mysql_user = 'avnadmin'
 mysql_pw   = 'AVNS_Q3ErAZvvJ9Atr8Kzz87'
