@@ -12,6 +12,7 @@ from datetime import datetime
 # Connect to MySQL Database
 def getConnection():
     connection = pymysql.connect(host=config.mysql_host,
+                                 port=config.mysql_port,
                                  user=config.mysql_user,
                                  password=config.mysql_pw,
                                  db=config.mysql_db,
