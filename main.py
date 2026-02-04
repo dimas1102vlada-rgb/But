@@ -78,7 +78,7 @@ def answer_ticket(message):
             bot.reply_to(message, f"✅ Ответ отправлен пользователю {user_id}.")
             open_tickets.remove(found_ticket)  # Убираем заявку сразу после отправки ответа
         else:
-            bot.reply_to(message, 'Заявка не найдена.')
+            bot.reply_to(message, f'Заявка с идентификатором "{unique_id}" не найдена.')  # Выводим детальное сообщение
     else:
         bot.reply_to(message, 'Доступ запрещён.')
 
@@ -100,7 +100,7 @@ def close_ticket(message):
             bot.send_message(user_id, 'Ваша заявка успешно закрыта.', parse_mode='Markdown')
             bot.reply_to(message, f"✅ Заявка №{unique_id[:8]} закрыта.")
         else:
-            bot.reply_to(message, 'Заявка не найдена.')
+            bot.reply_to(message, f'Заявка с идентификатором "{unique_id}" не найдена.')  # Детализируем ошибку
     else:
         bot.reply_to(message, 'Доступ запрещён.')
 
