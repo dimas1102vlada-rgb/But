@@ -11,37 +11,25 @@ import arrow
 
 bot = telebot.TeleBot(config.token)
 
-# Глобальные словари для хранения данных о пользователях и тикетах
-users_data = {}
-tickets_data = []
+# Внутренняя память тикетов и данных о пользователях
+open_tickets = []
+banned_users = set()
+support_chat_id = config.support_chat
 
-# Эмулируем создание фейковых билетов (для наглядности)
-for i in range(1, 6):
-    tickets_data.append({
-        'user_id': i,
-        'ticket_id': i,
-        'timestamp': datetime.utcnow(),
-        'link': f"https://example.com/ticket/{i}"
-    })
-
-# Вспомогательная функция для отправки сообщений FAQ
-def send_faq(chat_id):
-    bot.send_message(chat_id, config.text_messages['faqs'], parse_mode='Markdown', disable_web_page_preview=True)
-
-# Обработчик обратных вызовов
+# Обработчики обратных вызовов
 @bot.callback_query_handler(func=lambda call: True)
 def callback_inline(call):
     if call.message:
         if call.data == "faqCallbackdata":
-            send_faq(call.message.chat.id)
+            bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.message_id,
+                                  text=config.text_messages['faqs'], parse_mode='Markdown',
+                                  disable_web_page_preview=True)
 
 # Команда старта
 @bot.message_handler(commands=['start'])
 def start(message):
     if message.chat.type == 'private':
-        chat_id = message.chat.id
-        users_data.setdefault(chat_id, {'tickets': []})
-        bot.send_message(chat_id,
+        bot.send_message(message.chat.id,
                          config.text_messages['start'].format(message.from_user.first_name),
                          parse_mode='Markdown', disable_web_page_preview=True)
     else:
@@ -49,50 +37,127 @@ def start(message):
 
 # Команда помощи (FAQ)
 @bot.message_handler(commands=['faq'])
-def help_command(message):
+def show_faq(message):
     if message.chat.type == 'private':
-        send_faq(message.chat.id)
+        bot.reply_to(message, config.text_messages['faqs'], parse_mode='Markdown', disable_web_page_preview=True)
+    else:
+        pass
 
-# Список открытых тикетов
+# Получение всех открытых тикетов
 @bot.message_handler(commands=['tickets', 't'])
 def list_tickets(message):
-    if message.chat.type == 'private':
-        chat_id = message.chat.id
-        open_tickets = [
-            t for t in tickets_data if t['user_id'] == chat_id and t['resolved'] is False
-        ]
-        if len(open_tickets) == 0:
-            bot.send_message(chat_id, "Все ваши тикеты закрыты.")
-        else:
-            tickets_list = "\n".join([f"{t['ticket_id']} ({arrow.get(t['timestamp']).humanize()}): {t['link']}" for t in open_tickets])
-            bot.send_message(chat_id, f"Ваши активные тикеты:\n{tickets_list}", parse_mode='Markdown')
+    if message.chat.id == support_chat_id:
+        if not open_tickets:
+            bot.reply_to(message, "ℹ️ Отличная работа, вы ответили на все тикеты!")
+            return
 
-# Закрыть тикет вручную
+        ot_msg = '📨 *Открытые тикеты:*\n\n'
+        for ticket in open_tickets:
+            user_id = ticket["user_id"]
+            user = bot.get_chat(user_id)
+            first_name = user.first_name or ''
+            last_name = user.last_name or ''
+            full_name = f'{first_name} {last_name}'
+            link = f'tg://user?id={user_id}'
+            ot_msg += f"• {full_name} ({user_id})\n➜ Перейти к пользователю: {link}\n"
+
+        bot.send_message(message.chat.id, ot_msg, parse_mode='Markdown')
+    else:
+        pass
+
+# Закрытие тикета вручную
 @bot.message_handler(commands=['close', 'c'])
 def close_ticket(message):
-    if message.chat.type == 'private':
-        chat_id = message.chat.id
-        args = message.text.strip().split()[1:]
-        if len(args) > 0:
-            ticket_id = int(args[0])  # Предполагаем, что номер тикета передан первым аргументом
-            matching_tickets = [t for t in tickets_data if t['ticket_id'] == ticket_id and t['user_id'] == chat_id]
-            if len(matching_tickets) > 0:
-                ticket = matching_tickets[0]
-                ticket['resolved'] = True
-                bot.send_message(chat_id, f"Тикет №{ticket_id} закрыт.")
+    if message.chat.id == support_chat_id:
+        if message.reply_to_message and '#id' in message.reply_to_message.text:
+            user_id = int(message.reply_to_message.text.split('#id')[1].split(')')[0])
+            found = next((t for t in open_tickets if t["user_id"] == user_id), None)
+            if found:
+                open_tickets.remove(found)
+                bot.reply_to(message, '✅ Ок, закрыли тикет этого пользователя!')
             else:
-                bot.send_message(chat_id, f"Тикет №{ticket_id} не найден или принадлежит другому пользователю.")
+                bot.reply_to(message, '❌ У этого пользователя нет активного тикета.')
         else:
-            bot.send_message(chat_id, "Укажите ID тикета для закрытия.")
+            bot.reply_to(message, 'ℹ️ Нужно ответить на сообщение')
+    else:
+        pass
 
-# Общая обработка входящих сообщений
+# Забанить пользователя
+@bot.message_handler(commands=['ban'])
+def ban_user(message):
+    if message.chat.id == support_chat_id:
+        if message.reply_to_message and '#id' in message.reply_to_message.text:
+            user_id = int(message.reply_to_message.text.split('#id')[1].split(')')[0])
+            if user_id in banned_users:
+                bot.reply_to(message, '❌ Этот пользователь уже заблокирован...')
+            else:
+                banned_users.add(user_id)
+                bot.reply_to(message, '✅ Ок, заблокировали этого пользователя!')
+        else:
+            bot.reply_to(message, 'ℹ️ Нужно ответить на сообщение')
+    else:
+        pass
+
+# Разбанить пользователя
+@bot.message_handler(commands=['unban'])
+def unban_user(message):
+    if message.chat.id == support_chat_id:
+        if message.reply_to_message and '#id' in message.reply_to_message.text:
+            user_id = int(message.reply_to_message.text.split('#id')[1].split(')')[0])
+            if user_id in banned_users:
+                banned_users.discard(user_id)
+                bot.reply_to(message, '✅ Ок, разблокировали этого пользователя!')
+            else:
+                bot.reply_to(message, '❌ Этот пользователь уже разблокирован...')
+        else:
+            bot.reply_to(message, 'ℹ️ Нужно ответить на сообщение')
+    else:
+        pass
+
+# Получение списка забаненных пользователей
+@bot.message_handler(commands=['banned'])
+def list_banned(message):
+    if message.chat.id == support_chat_id:
+        if not banned_users:
+            bot.reply_to(message, "ℹ️ Хорошие новости, никто пока не забанен...")
+            return
+
+        b_msg = '⛔️ *Заблокированные пользователи:*\n\n'
+        for user_id in banned_users:
+            user = bot.get_chat(user_id)
+            first_name = user.first_name or ''
+            last_name = user.last_name or ''
+            full_name = f'{first_name} {last_name}'
+            link = f'tg://user?id={user_id}'
+            b_msg += f"• {full_name} ({user_id})\n➜ Перейти к пользователю: {link}\n"
+
+        bot.send_message(message.chat.id, b_msg, parse_mode='Markdown')
+    else:
+        pass
+
+# Обработка сообщений (Пользователь → Поддержка)
 @bot.message_handler(func=lambda message: message.chat.type == 'private', content_types=['text', 'photo', 'document'])
-def handle_private_message(message):
-    chat_id = message.chat.id
-    users_data.setdefault(chat_id, {'tickets': []})
-    bot.reply_to(message, "Получено ваше сообщение, скоро свяжемся с вами.", parse_mode="Markdown")
+def handle_support_request(message):
+    user_id = message.chat.id
+    if user_id in banned_users:
+        bot.reply_to(message, 'Вы заблокированы и не можете общаться с поддержкой.')
+        return
 
-# Главный цикл прослушивания сообщений
-if __name__ == "__main__":
+    new_ticket = {"user_id": user_id, "content": message.text, "timestamp": datetime.now()}
+    open_tickets.append(new_ticket)
+    bot.forward_message(support_chat_id, message.chat.id, message.message_id)
+    bot.reply_to(message, '✅ Ваше сообщение передано службе поддержки. Скоро ответим.')
+
+# Обработка сообщений (Поддержка → Пользователь)
+@bot.message_handler(func=lambda message: message.chat.id == support_chat_id, content_types=['text', 'photo', 'document'])
+def handle_reply_from_support(message):
+    if message.reply_to_message:
+        original_message = message.reply_to_message
+        target_user_id = original_message.forward_from.id
+        bot.copy_message(target_user_id, support_chat_id, message.message_id)
+        bot.reply_to(message, 'Сообщение доставлено пользователю.')
+
+# Главная точка входа
+if __name__ == '__main__':
     print("Telegram Support Bot запущен...")
     bot.polling(none_stop=True)
