@@ -11,7 +11,7 @@ import arrow
 
 bot = telebot.TeleBot(config.token)
 
-# Внутренняя память тикетов и данных о пользователях
+# Текущие тикеты и забаненные пользователи
 open_tickets = []
 banned_users = set()
 support_chat_id = config.support_chat
@@ -35,105 +35,77 @@ def start(message):
     else:
         bot.reply_to(message, 'Пожалуйста, отправьте личное сообщение, если хотите связаться с командой поддержки.')
 
-# Команда помощи (FAQ)
-@bot.message_handler(commands=['faq'])
-def show_faq(message):
-    if message.chat.type == 'private':
-        bot.reply_to(message, config.text_messages['faqs'], parse_mode='Markdown', disable_web_page_preview=True)
-    else:
-        pass
-
-# Получение всех открытых тикетов
-@bot.message_handler(commands=['tickets', 't'])
+# Показ всех открытых тикетов
+@bot.message_handler(commands=['showtickets'])
 def list_tickets(message):
     if message.chat.id == support_chat_id:
         if not open_tickets:
-            bot.reply_to(message, "ℹ️ Отличная работа, вы ответили на все тикеты!")
+            bot.reply_to(message, "Пока нет открытых тикетов.")
             return
 
-        ot_msg = '📨 *Открытые тикеты:*\n\n'
-        for ticket in open_tickets:
+        ot_msg = '📨 *Список открытых тикетов:*\n\n'
+        for idx, ticket in enumerate(open_tickets):
             user_id = ticket["user_id"]
             user = bot.get_chat(user_id)
             first_name = user.first_name or ''
             last_name = user.last_name or ''
             full_name = f'{first_name} {last_name}'
             link = f'tg://user?id={user_id}'
-            ot_msg += f"• {full_name} ({user_id})\n➜ Перейти к пользователю: {link}\n"
+            ot_msg += f"• #{idx+1}: {full_name} ({user_id})\n➜ Перейти к пользователю: {link}\n"
 
         bot.send_message(message.chat.id, ot_msg, parse_mode='Markdown')
     else:
-        pass
+        bot.reply_to(message, 'Доступ запрещен.')
 
-# Закрытие тикета вручную
-@bot.message_handler(commands=['close', 'c'])
-def close_ticket(message):
+# Ответ на тикет
+@bot.message_handler(commands=['reply'])
+def reply_to_ticket(message):
     if message.chat.id == support_chat_id:
-        if message.reply_to_message and '#id' in message.reply_to_message.text:
-            user_id = int(message.reply_to_message.text.split('#id')[1].split(')')[0])
-            found = next((t for t in open_tickets if t["user_id"] == user_id), None)
-            if found:
-                open_tickets.remove(found)
-                bot.reply_to(message, '✅ Ок, закрыли тикет этого пользователя!')
-            else:
-                bot.reply_to(message, '❌ У этого пользователя нет активного тикета.')
-        else:
-            bot.reply_to(message, 'ℹ️ Нужно ответить на сообщение')
-    else:
-        pass
-
-# Забанить пользователя
-@bot.message_handler(commands=['ban'])
-def ban_user(message):
-    if message.chat.id == support_chat_id:
-        if message.reply_to_message and '#id' in message.reply_to_message.text:
-            user_id = int(message.reply_to_message.text.split('#id')[1].split(')')[0])
-            if user_id in banned_users:
-                bot.reply_to(message, '❌ Этот пользователь уже заблокирован...')
-            else:
-                banned_users.add(user_id)
-                bot.reply_to(message, '✅ Ок, заблокировали этого пользователя!')
-        else:
-            bot.reply_to(message, 'ℹ️ Нужно ответить на сообщение')
-    else:
-        pass
-
-# Разбанить пользователя
-@bot.message_handler(commands=['unban'])
-def unban_user(message):
-    if message.chat.id == support_chat_id:
-        if message.reply_to_message and '#id' in message.reply_to_message.text:
-            user_id = int(message.reply_to_message.text.split('#id')[1].split(')')[0])
-            if user_id in banned_users:
-                banned_users.discard(user_id)
-                bot.reply_to(message, '✅ Ок, разблокировали этого пользователя!')
-            else:
-                bot.reply_to(message, '❌ Этот пользователь уже разблокирован...')
-        else:
-            bot.reply_to(message, 'ℹ️ Нужно ответить на сообщение')
-    else:
-        pass
-
-# Получение списка забаненных пользователей
-@bot.message_handler(commands=['banned'])
-def list_banned(message):
-    if message.chat.id == support_chat_id:
-        if not banned_users:
-            bot.reply_to(message, "ℹ️ Хорошие новости, никто пока не забанен...")
+        parts = message.text.split(maxsplit=1)
+        if len(parts) != 2:
+            bot.reply_to(message, 'Формат команды: /reply <номер тикета>')
             return
 
-        b_msg = '⛔️ *Заблокированные пользователи:*\n\n'
-        for user_id in banned_users:
-            user = bot.get_chat(user_id)
-            first_name = user.first_name or ''
-            last_name = user.last_name or ''
-            full_name = f'{first_name} {last_name}'
-            link = f'tg://user?id={user_id}'
-            b_msg += f"• {full_name} ({user_id})\n➜ Перейти к пользователю: {link}\n"
-
-        bot.send_message(message.chat.id, b_msg, parse_mode='Markdown')
+        index_str = parts[1].strip()
+        try:
+            index = int(index_str) - 1
+            if index >= 0 and index < len(open_tickets):
+                ticket = open_tickets[index]
+                user_id = ticket["user_id"]
+                response = message.reply_to_message.text if message.reply_to_message else ""
+                bot.send_message(user_id, f"💬 Ваш тикет обработан службой поддержки:\n{response}",
+                                 parse_mode='Markdown')
+                bot.reply_to(message, f"✅ Ответ отправлен пользователю {user_id}.")
+            else:
+                bot.reply_to(message, 'Указанный тикет не найден.')
+        except ValueError:
+            bot.reply_to(message, 'Неверный индекс тикета.')
     else:
-        pass
+        bot.reply_to(message, 'Доступ запрещен.')
+
+# Закрытие тикета
+@bot.message_handler(commands=['closeticket'])
+def close_ticket(message):
+    if message.chat.id == support_chat_id:
+        parts = message.text.split(maxsplit=1)
+        if len(parts) != 2:
+            bot.reply_to(message, 'Формат команды: /closeticket <номер тикета>')
+            return
+
+        index_str = parts[1].strip()
+        try:
+            index = int(index_str) - 1
+            if index >= 0 and index < len(open_tickets):
+                ticket = open_tickets.pop(index)
+                user_id = ticket["user_id"]
+                bot.send_message(user_id, 'Ваш тикет закрыт.', parse_mode='Markdown')
+                bot.reply_to(message, f"✅ Тикет #{index+1} закрыт.")
+            else:
+                bot.reply_to(message, 'Указанный тикет не найден.')
+        except ValueError:
+            bot.reply_to(message, 'Неверный индекс тикета.')
+    else:
+        bot.reply_to(message, 'Доступ запрещен.')
 
 # Обработка сообщений (Пользователь → Поддержка)
 @bot.message_handler(func=lambda message: message.chat.type == 'private', content_types=['text', 'photo', 'document'])
@@ -146,16 +118,7 @@ def handle_support_request(message):
     new_ticket = {"user_id": user_id, "content": message.text, "timestamp": datetime.now()}
     open_tickets.append(new_ticket)
     bot.forward_message(support_chat_id, message.chat.id, message.message_id)
-    bot.reply_to(message, '✅ Ваше сообщение передано службе поддержки. Скоро ответим.')
-
-# Обработка сообщений (Поддержка → Пользователь)
-@bot.message_handler(func=lambda message: message.chat.id == support_chat_id, content_types=['text', 'photo', 'document'])
-def handle_reply_from_support(message):
-    if message.reply_to_message:
-        original_message = message.reply_to_message
-        target_user_id = original_message.forward_from.id
-        bot.copy_message(target_user_id, support_chat_id, message.message_id)
-        bot.reply_to(message, 'Сообщение доставлено пользователю.')
+    bot.reply_to(message, '✅ Ваше сообщение принято службой поддержки. Ждем ответа.')
 
 # Главная точка входа
 if __name__ == '__main__':
