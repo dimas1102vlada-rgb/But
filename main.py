@@ -5,10 +5,6 @@
 # --------------------------------------------- #
 
 import config
-from resources import mysql_handler as mysql
-from resources import markups_handler as markup
-from resources import msg_handler as msg
-
 import telebot
 from datetime import datetime
 import arrow
