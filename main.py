@@ -15,6 +15,7 @@ bot = telebot.TeleBot(config.token)
 open_tickets = []
 banned_users = set()
 support_chat_id = config.support_chat
+admin_ids = config.admin_ids  # Списка admin_ids задаётся в config.py
 
 # Обработчики обратных вызовов
 @bot.callback_query_handler(func=lambda call: True)
@@ -38,9 +39,9 @@ def start(message):
 # Показ всех открытых тикетов
 @bot.message_handler(commands=['showtickets'])
 def list_tickets(message):
-    if message.chat.id == support_chat_id:
+    if message.from_user.id in admin_ids:
         if not open_tickets:
-            bot.reply_to(message, "Пока нет открытых тикетов.")
+            bot.reply_to(message, "Сейчас нет открытых тикетов.")
             return
 
         ot_msg = '📨 *Список открытых тикетов:*\n\n'
@@ -55,12 +56,12 @@ def list_tickets(message):
 
         bot.send_message(message.chat.id, ot_msg, parse_mode='Markdown')
     else:
-        bot.reply_to(message, 'Доступ запрещен.')
+        bot.reply_to(message, 'Доступ ограничен.')
 
 # Ответ на тикет
 @bot.message_handler(commands=['reply'])
 def reply_to_ticket(message):
-    if message.chat.id == support_chat_id:
+    if message.from_user.id in admin_ids:
         parts = message.text.split(maxsplit=1)
         if len(parts) != 2:
             bot.reply_to(message, 'Формат команды: /reply <номер тикета>')
@@ -81,12 +82,12 @@ def reply_to_ticket(message):
         except ValueError:
             bot.reply_to(message, 'Неверный индекс тикета.')
     else:
-        bot.reply_to(message, 'Доступ запрещен.')
+        bot.reply_to(message, 'Доступ ограничен.')
 
 # Закрытие тикета
 @bot.message_handler(commands=['closeticket'])
 def close_ticket(message):
-    if message.chat.id == support_chat_id:
+    if message.from_user.id in admin_ids:
         parts = message.text.split(maxsplit=1)
         if len(parts) != 2:
             bot.reply_to(message, 'Формат команды: /closeticket <номер тикета>')
@@ -105,7 +106,7 @@ def close_ticket(message):
         except ValueError:
             bot.reply_to(message, 'Неверный индекс тикета.')
     else:
-        bot.reply_to(message, 'Доступ запрещен.')
+        bot.reply_to(message, 'Доступ ограничен.')
 
 # Обработка сообщений (Пользователь → Поддержка)
 @bot.message_handler(func=lambda message: message.chat.type == 'private', content_types=['text', 'photo', 'document'])
