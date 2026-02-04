@@ -8,7 +8,9 @@
 token = '8230675731:AAG802jRLKPhzsAbJ5Iv98N_sMHoh0f0nqk'      # Подробнее: https://core.telegram.org/bots#3-how-do-i-create-a-bot
 
 # Support Chat (Chat ID)
-support_chat = '-1003593410850'               # Пример: -1001429781350 | Узнать ID своего канала можно тут: https://t.me/getidsbot
+support_chat = '-1003593410850' # Пример: -1001429781350 | Узнать ID своего канала можно тут: https://t.me/getidsbot
+
+admin_ids = [7121765268,5699458408,329147047,547722486,814652572]
 
 # Прочие настройки
 time_zone           = 'GMT+2'   # Настройка временной зоны
