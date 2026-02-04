@@ -11,8 +11,6 @@ import arrow
 
 bot = telebot.TeleBot(config.token)
 
-mysql.createTables
-
 
 # Обработчики обратных вызовов
 @bot.callback_query_handler(func=lambda call: True)
