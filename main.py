@@ -58,49 +58,47 @@ def list_tickets(message):
     else:
         bot.reply_to(message, 'Доступ запрещён.')
 
-# Ответ на тикет
+# Ответ на тикет по ID пользователя
 @bot.message_handler(commands=['answer'])
 def answer_ticket(message):
     if message.from_user.id in admin_ids:
         parts = message.text.split(maxsplit=2)
         if len(parts) != 3:
-            bot.reply_to(message, 'Формат команды: `/answer <идентификатор заявки> <сообщение>`', parse_mode="MarkdownV2")
+            bot.reply_to(message, 'Формат команды: `/answer <id пользователя> <сообщение>`', parse_mode="MarkdownV2")
             return
 
-        unique_id = parts[1].strip()
-        found_ticket = next((ticket for ticket in open_tickets if ticket["unique_id"] == unique_id), None)
+        user_id = parts[1].strip()
+        found_ticket = next((ticket for ticket in open_tickets if ticket["user_id"] == int(user_id)), None)
 
         if found_ticket is not None:
-            user_id = found_ticket["user_id"]
             response = parts[2].strip()
             
-            bot.send_message(user_id, f"💬 Ответ на вашу заявку:\n{response}", parse_mode='Markdown')
-            bot.reply_to(message, f"✅ Ответ отправлен пользователю {user_id}.\nЗаявка №{unique_id[:8]} закрыта.", parse_mode='Markdown')
+            bot.send_message(int(user_id), f"💬 Ответ на вашу заявку:\n{response}", parse_mode='Markdown')
+            bot.reply_to(message, f"✅ Ответ отправлен пользователю {user_id}.", parse_mode='Markdown')
             open_tickets.remove(found_ticket)  # Убираем заявку сразу после отправки ответа
         else:
-            bot.reply_to(message, f'Заявка с идентификатором "{unique_id}" не найдена.\nВозможно, она уже была закрыта другим оператором.', parse_mode='Markdown')
+            bot.reply_to(message, f'Активная заявка для пользователя с ID "{user_id}" не найдена.', parse_mode='Markdown')
     else:
         bot.reply_to(message, 'Доступ запрещён.')
 
-# Закрытие тикета
+# Закрытие тикета по ID пользователя
 @bot.message_handler(commands=['closeticket'])
 def close_ticket(message):
     if message.from_user.id in admin_ids:
         parts = message.text.split(maxsplit=1)
         if len(parts) != 2:
-            bot.reply_to(message, 'Формат команды: `/closeticket <идентификатор заявки>`', parse_mode="MarkdownV2")
+            bot.reply_to(message, 'Формат команды: `/closeticket <id пользователя>`', parse_mode="MarkdownV2")
             return
 
-        unique_id = parts[1].strip()
-        found_ticket = next((ticket for ticket in open_tickets if ticket["unique_id"] == unique_id), None)
+        user_id = parts[1].strip()
+        found_ticket = next((ticket for ticket in open_tickets if ticket["user_id"] == int(user_id)), None)
 
         if found_ticket is not None:
             open_tickets.remove(found_ticket)
-            user_id = found_ticket["user_id"]
-            bot.send_message(user_id, 'Ваша заявка успешно закрыта.', parse_mode='Markdown')
-            bot.reply_to(message, f"✅ Заявка №{unique_id[:8]} закрыта.", parse_mode='Markdown')
+            bot.send_message(int(user_id), 'Ваша заявка успешно закрыта.', parse_mode='Markdown')
+            bot.reply_to(message, f"✅ Заявка для пользователя {user_id} закрыта.", parse_mode='Markdown')
         else:
-            bot.reply_to(message, f'Заявка с идентификатором "{unique_id}" не найдена.\nВозможно, она уже была закрыта другим оператором.', parse_mode='Markdown')
+            bot.reply_to(message, f'Активная заявка для пользователя с ID "{user_id}" не найдена.', parse_mode='Markdown')
     else:
         bot.reply_to(message, 'Доступ запрещён.')
 
