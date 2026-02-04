@@ -15,7 +15,7 @@ bot = telebot.TeleBot(config.token)
 open_tickets = []
 banned_users = set()
 support_chat_id = config.support_chat
-admin_ids = config.admin_ids  # Списка admin_ids задаётся в config.py
+admin_ids = config.admin_ids  # Список admin_ids задаётся в config.py
 
 # Обработчики обратных вызовов
 @bot.callback_query_handler(func=lambda call: True)
@@ -34,17 +34,17 @@ def start(message):
                          config.text_messages['start'].format(message.from_user.first_name),
                          parse_mode='Markdown', disable_web_page_preview=True)
     else:
-        bot.reply_to(message, 'господи.')
+        bot.reply_to(message, 'Эта команда доступна только в приватных сообщениях.')
 
 # Показ всех открытых тикетов
 @bot.message_handler(commands=['showtickets'])
 def list_tickets(message):
     if message.from_user.id in admin_ids:
         if not open_tickets:
-            bot.reply_to(message, "Сейчас нет открытых тикетов.")
+            bot.reply_to(message, "Нет заявок в клан.")
             return
 
-        ot_msg = '📨 *Список открытых тикетов:*\n\n'
+        ot_msg = '📨 *Список открытых заявок в клан:*\n\n'
         for idx, ticket in enumerate(open_tickets):
             user_id = ticket["user_id"]
             user = bot.get_chat(user_id)
@@ -56,7 +56,7 @@ def list_tickets(message):
 
         bot.send_message(message.chat.id, ot_msg, parse_mode='Markdown')
     else:
-        bot.reply_to(message, 'Доступ ограничен.')
+        bot.reply_to(message, 'Доступ запрещён.')
 
 # Ответ на тикет
 @bot.message_handler(commands=['answer'])
@@ -64,7 +64,7 @@ def answer_ticket(message):
     if message.from_user.id in admin_ids:
         parts = message.text.split(maxsplit=2)
         if len(parts) != 3:
-            bot.reply_to(message, 'Формат команды: /answer <номер тикета> <сообщение>')
+            bot.reply_to(message, 'Формат команды: `/answer <номер заявки> <сообщение>`', parse_mode="MarkdownV2")
             return
 
         index_str = parts[1].strip()
@@ -75,15 +75,15 @@ def answer_ticket(message):
                 user_id = ticket["user_id"]
                 response = parts[2].strip()
                 
-                bot.send_message(user_id, f"💬 Ваша заявка отправлена, ожидайте:\n{response}",
+                bot.send_message(user_id, f"💬 Ответ на вашу заявку в клан:\n{response}",
                                  parse_mode='Markdown')
                 bot.reply_to(message, f"✅ Ответ отправлен пользователю {user_id}.")
             else:
-                bot.reply_to(message, 'Указанный тикет не найден.')
+                bot.reply_to(message, 'Указанный заявки не найден.')
         except ValueError:
-            bot.reply_to(message, 'Неверный индекс тикета.')
+            bot.reply_to(message, 'Неверный номер заявки.')
     else:
-        bot.reply_to(message, 'Доступ ограничен.')
+        bot.reply_to(message, 'Доступ запрещён.')
 
 # Закрытие тикета
 @bot.message_handler(commands=['closeticket'])
@@ -91,7 +91,7 @@ def close_ticket(message):
     if message.from_user.id in admin_ids:
         parts = message.text.split(maxsplit=1)
         if len(parts) != 2:
-            bot.reply_to(message, 'Формат команды: /closeticket <номер тикета>')
+            bot.reply_to(message, 'Формат команды: `/closeticket <номер заявки>`', parse_mode="MarkdownV2")
             return
 
         index_str = parts[1].strip()
@@ -100,27 +100,39 @@ def close_ticket(message):
             if index >= 0 and index < len(open_tickets):
                 ticket = open_tickets.pop(index)
                 user_id = ticket["user_id"]
-                bot.send_message(user_id, 'мур.', parse_mode='Markdown')
-                bot.reply_to(message, f"✅ Тикет #{index+1} закрыт.")
+                bot.send_message(user_id, 'Ваша заявка успешно закрыт.', parse_mode='Markdown')
+                bot.reply_to(message, f"✅ Заявка №{index + 1} закрыт.")
             else:
-                bot.reply_to(message, 'Указанный тикет не найден.')
+                bot.reply_to(message, 'Указанный заявка не найден.')
         except ValueError:
-            bot.reply_to(message, 'Неверный индекс тикета.')
+            bot.reply_to(message, 'Неверный номер тикета.')
     else:
-        bot.reply_to(message, 'Доступ ограничен.')
+        bot.reply_to(message, 'Доступ запрещён.')
 
 # Обработка сообщений (Пользователь → Поддержка)
 @bot.message_handler(func=lambda message: message.chat.type == 'private', content_types=['text', 'photo', 'document'])
 def handle_support_request(message):
     user_id = message.chat.id
+    
+    # Проверяем наличие активных тикетов текущего пользователя
+    active_tickets = any(ticket["user_id"] == user_id for ticket in open_tickets)
+    
     if user_id in banned_users:
-        bot.reply_to(message, 'Вы заблокированы и не можете отправлять сообщение.')
+        bot.reply_to(message, 'Вы заблокированы и не можете отправить сообщение.')
         return
-
-    new_ticket = {"user_id": user_id, "content": message.text, "timestamp": datetime.now()}
+    
+    elif active_tickets:
+        bot.reply_to(message, 'У вас уже есть заявка в клан. Подождите ответа.')
+        return
+        
+    new_ticket = {
+        "user_id": user_id,
+        "content": message.text,
+        "timestamp": datetime.now()
+    }
     open_tickets.append(new_ticket)
     bot.forward_message(support_chat_id, message.chat.id, message.message_id)
-    bot.reply_to(message, '✅ Ваше сообщение принято заместителям калан. Ждем ответа.')
+    bot.reply_to(message, '✅ Ваше заявка в клан отправлена. Ожидайте ответа.')
 
 # Главная точка входа
 if __name__ == '__main__':
