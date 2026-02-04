@@ -6,16 +6,36 @@
 
 import config
 import telebot
-from datetime import datetime
+from datetime import datetime, timedelta
 import uuid  # Импортируем модуль UUID для генерации уникальных идентификаторов
+import threading  # Модуль для фоновых процессов
 
 bot = telebot.TeleBot(config.token)
 
 # Текущие тикеты и забаненные пользователи
 open_tickets = []  # Здесь будем хранить список объектов тикетов
-banned_users = set()
+banned_users = set()  # Набор заблокированных пользователей
 support_chat_id = config.support_chat
 admin_ids = config.admin_ids  # Список admin_ids задаётся в config.py
+
+# Функция очистки устаревших заявок
+def clean_old_tickets():
+    global open_tickets
+    now = datetime.now()
+    expired_tickets = [
+        ticket for ticket in open_tickets
+        if (now - ticket["timestamp"]) > timedelta(hours=24)
+    ]
+    for ticket in expired_tickets:
+        open_tickets.remove(ticket)
+        user_id = ticket["user_id"]
+        bot.send_message(user_id, '❗️ Ваша заявка устарела и была автоматически удалена.', parse_mode='Markdown')
+
+    # Повторяем очистку каждые 24 часа
+    threading.Timer(24*60*60, clean_old_tickets).start()
+
+# Запускаем фоновый процесс чистки заявок
+clean_old_tickets()
 
 # Обработчики обратных вызовов
 @bot.callback_query_handler(func=lambda call: True)
@@ -99,6 +119,70 @@ def close_ticket(message):
             bot.reply_to(message, f"✅ Заявка для пользователя {user_id} закрыта.", parse_mode='Markdown')
         else:
             bot.reply_to(message, f'Активная заявка для пользователя с ID "{user_id}" не найдена.', parse_mode='Markdown')
+    else:
+        bot.reply_to(message, 'Доступ запрещён.')
+
+# Блокировка пользователя по ID
+@bot.message_handler(commands=['ban'])
+def ban_user(message):
+    if message.from_user.id in admin_ids:
+        parts = message.text.split(maxsplit=1)
+        if len(parts) != 2:
+            bot.reply_to(message, 'Формат команды: `/ban <id пользователя>`', parse_mode="MarkdownV2")
+            return
+
+        user_id = parts[1].strip()
+        if user_id.isdigit():
+            user_id = int(user_id)
+            if user_id in banned_users:
+                bot.reply_to(message, f"Пользователь с ID `{user_id}` уже заблокирован.", parse_mode='Markdown')
+            else:
+                banned_users.add(user_id)
+                bot.reply_to(message, f"✅ Пользователь с ID `{user_id}` заблокирован.", parse_mode='Markdown')
+        else:
+            bot.reply_to(message, 'Некорректный формат ID пользователя.', parse_mode='Markdown')
+    else:
+        bot.reply_to(message, 'Доступ запрещён.')
+
+# Разблокировка пользователя по ID
+@bot.message_handler(commands=['unban'])
+def unban_user(message):
+    if message.from_user.id in admin_ids:
+        parts = message.text.split(maxsplit=1)
+        if len(parts) != 2:
+            bot.reply_to(message, 'Формат команды: `/unban <id пользователя>`', parse_mode="MarkdownV2")
+            return
+
+        user_id = parts[1].strip()
+        if user_id.isdigit():
+            user_id = int(user_id)
+            if user_id in banned_users:
+                banned_users.discard(user_id)
+                bot.reply_to(message, f"✅ Пользователь с ID `{user_id}` разблокирован.", parse_mode='Markdown')
+            else:
+                bot.reply_to(message, f"Пользователь с ID `{user_id}` не заблокирован.", parse_mode='Markdown')
+        else:
+            bot.reply_to(message, 'Некорректный формат ID пользователя.', parse_mode='Markdown')
+    else:
+        bot.reply_to(message, 'Доступ запрещён.')
+
+# Просмотр списка забаненных пользователей
+@bot.message_handler(commands=['listbans'])
+def list_banned_users(message):
+    if message.from_user.id in admin_ids:
+        if not banned_users:
+            bot.reply_to(message, "Нет заблокированных пользователей.", parse_mode='Markdown')
+            return
+
+        ban_list = '🔥 *Список заблокированных пользователей:*\n\n'
+        for user_id in banned_users:
+            user = bot.get_chat(user_id)
+            first_name = user.first_name or ''
+            last_name = user.last_name or ''
+            full_name = f'{first_name} {last_name}'
+            ban_list += f"• {user_id}: {full_name}\n"
+
+        bot.send_message(message.chat.id, ban_list, parse_mode='Markdown')
     else:
         bot.reply_to(message, 'Доступ запрещён.')
 
