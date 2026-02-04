@@ -34,7 +34,7 @@ def start(message):
                          config.text_messages['start'].format(message.from_user.first_name),
                          parse_mode='Markdown', disable_web_page_preview=True)
     else:
-        bot.reply_to(message, 'Пожалуйста, отправьте личное сообщение, если хотите связаться с командой поддержки.')
+        bot.reply_to(message, 'господи.')
 
 # Показ всех открытых тикетов
 @bot.message_handler(commands=['showtickets'])
@@ -59,22 +59,23 @@ def list_tickets(message):
         bot.reply_to(message, 'Доступ ограничен.')
 
 # Ответ на тикет
-@bot.message_handler(commands=['reply'])
-def reply_to_ticket(message):
+@bot.message_handler(commands=['answer'])
+def answer_ticket(message):
     if message.from_user.id in admin_ids:
-        parts = message.text.split(maxsplit=1)
-        if len(parts) != 2:
-            bot.reply_to(message, 'Формат команды: /reply <номер тикета>')
+        parts = message.text.split(maxsplit=2)
+        if len(parts) != 3:
+            bot.reply_to(message, 'Формат команды: /answer <номер тикета> <сообщение>')
             return
 
         index_str = parts[1].strip()
         try:
             index = int(index_str) - 1
             if index >= 0 and index < len(open_tickets):
-                ticket = open_tickets[index]
+                ticket = open_tickets.pop(index)
                 user_id = ticket["user_id"]
-                response = message.reply_to_message.text if message.reply_to_message else ""
-                bot.send_message(user_id, f"💬 Ваш тикет обработан службой поддержки:\n{response}",
+                response = parts[2].strip()
+                
+                bot.send_message(user_id, f"💬 Ваша заявка отправлена, ожидайте:\n{response}",
                                  parse_mode='Markdown')
                 bot.reply_to(message, f"✅ Ответ отправлен пользователю {user_id}.")
             else:
@@ -99,7 +100,7 @@ def close_ticket(message):
             if index >= 0 and index < len(open_tickets):
                 ticket = open_tickets.pop(index)
                 user_id = ticket["user_id"]
-                bot.send_message(user_id, 'Ваш тикет закрыт.', parse_mode='Markdown')
+                bot.send_message(user_id, 'мур.', parse_mode='Markdown')
                 bot.reply_to(message, f"✅ Тикет #{index+1} закрыт.")
             else:
                 bot.reply_to(message, 'Указанный тикет не найден.')
@@ -113,13 +114,13 @@ def close_ticket(message):
 def handle_support_request(message):
     user_id = message.chat.id
     if user_id in banned_users:
-        bot.reply_to(message, 'Вы заблокированы и не можете общаться с поддержкой.')
+        bot.reply_to(message, 'Вы заблокированы и не можете отправлять сообщение.')
         return
 
     new_ticket = {"user_id": user_id, "content": message.text, "timestamp": datetime.now()}
     open_tickets.append(new_ticket)
     bot.forward_message(support_chat_id, message.chat.id, message.message_id)
-    bot.reply_to(message, '✅ Ваше сообщение принято службой поддержки. Ждем ответа.')
+    bot.reply_to(message, '✅ Ваше сообщение принято заместителям калан. Ждем ответа.')
 
 # Главная точка входа
 if __name__ == '__main__':
