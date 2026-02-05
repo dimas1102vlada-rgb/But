@@ -27,8 +27,8 @@ adapter = HTTPAdapter(max_retries=retry_strategy)
 session = requests.Session()
 session.mount("https://", adapter)
 
-# Установка большого таймаута (60 сек.)
-bot = telebot.TeleBot(bot_token, session=session, timeout=60)
+# Устанавливаем большой таймаут
+bot = telebot.TeleBot(bot_token, timeout=60)
 
 # Текущие тикеты и забаненные пользователи
 open_tickets = []  # Здесь будем хранить список объектов тикетов
