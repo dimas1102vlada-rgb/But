@@ -7,10 +7,21 @@
 import config
 import telebot
 from datetime import datetime, timedelta
-import uuid  # Импортируем модуль UUID для генерации уникальных идентификаторов
-import threading  # Модуль для фоновых процессов
+import uuid
+import threading
+import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 
-bot = telebot.TeleBot(config.token)
+bot_token = config.token
+
+# Настройка повторных попыток
+session = requests.Session()
+retries = Retry(total=5, backoff_factor=0.1, status_forcelist=[500, 502, 503, 504])
+adapter = HTTPAdapter(max_retries=retries)
+session.mount('https://', adapter)
+
+bot = telebot.TeleBot(bot_token, session=session, timeout=60)  # увеличенный таймаут и настройка повторных попыток
 
 # Текущие тикеты и забаненные пользователи
 open_tickets = []  # Здесь будем хранить список объектов тикетов
