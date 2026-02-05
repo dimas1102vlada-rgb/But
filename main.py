@@ -19,16 +19,16 @@ bot_token = config.token
 retry_strategy = Retry(
     total=5,  # общее количество повторных попыток
     backoff_factor=1,  # фактор экспоненциального отката между попытками
-    status_forcelist=[429, 500, 502, 503, 504],  # статусы, при которых производится повтор
-    allowed_methods=["HEAD", "GET", "OPTIONS", "POST"],  # разрешенные методы
+    status_forcelist=[429, 500, 502, 503, 504],  # статусы, при которых производить повтор
+    allowed_methods=["HEAD", "GET", "OPTIONS", "POST"],  # разрешённые методы
 )
 
 adapter = HTTPAdapter(max_retries=retry_strategy)
 session = requests.Session()
 session.mount("https://", adapter)
 
-# Устанавливаем большой таймаут
-bot = telebot.TeleBot(bot_token, timeout=60)
+# Просто создаём экземпляр TeleBot без дополнительных аргументов
+bot = telebot.TeleBot(bot_token)
 
 # Текущие тикеты и забаненные пользователи
 open_tickets = []  # Здесь будем хранить список объектов тикетов
