@@ -7,8 +7,8 @@
 import config
 import telebot
 from datetime import datetime, timedelta
-import uuid
-import threading
+import uuid  # Импортируем модуль UUID для генерации уникальных идентификаторов
+import threading  # Модуль для фоновых процессов
 import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
@@ -16,16 +16,23 @@ from urllib3.util.retry import Retry
 bot_token = config.token
 
 # Настройка повторных попыток
-session = requests.Session()
-retries = Retry(total=5, backoff_factor=0.1, status_forcelist=[500, 502, 503, 504])
-adapter = HTTPAdapter(max_retries=retries)
-session.mount('https://', adapter)
+retry_strategy = Retry(
+    total=5,  # общее количество повторных попыток
+    backoff_factor=1,  # фактор экспоненциального отката между попытками
+    status_forcelist=[429, 500, 502, 503, 504],  # статусы, при которых производится повтор
+    allowed_methods=["HEAD", "GET", "OPTIONS", "POST"],  # разрешенные методы
+)
 
-bot = telebot.TeleBot(bot_token, session=session, timeout=60)  # увеличенный таймаут и настройка повторных попыток
+adapter = HTTPAdapter(max_retries=retry_strategy)
+session = requests.Session()
+session.mount("https://", adapter)
+
+# Установка большого таймаута (60 сек.)
+bot = telebot.TeleBot(bot_token, session=session, timeout=60)
 
 # Текущие тикеты и забаненные пользователи
 open_tickets = []  # Здесь будем хранить список объектов тикетов
-banned_users = set()  # Набор заблокированных пользователей
+banned_users = {}  # Словарь для хранения информации о забаненных пользователях (ключ: user_id, значение: timestamp)
 support_chat_id = config.support_chat
 admin_ids = config.admin_ids  # Список admin_ids задаётся в config.py
 
@@ -72,7 +79,7 @@ def start(message):
 def list_tickets(message):
     if message.from_user.id in admin_ids:
         if not open_tickets:
-            bot.reply_to(message, "Нет открытых заявок.")
+            bot.reply_to(message, "Нет открытых заявок.", parse_mode='Markdown')
             return
 
         ot_msg = '📨 *Список открытых заявок:*\n\n'
@@ -169,7 +176,7 @@ def ban_user(message):
             if user_id in banned_users:
                 bot.reply_to(message, f"Пользователь с ID `{user_id}` уже заблокирован.", parse_mode='Markdown')
             else:
-                banned_users.add(user_id)
+                banned_users[user_id] = datetime.now()  # добавляем запись с меткой времени блокировки
                 bot.reply_to(message, f"✅ Пользователь с ID `{user_id}` заблокирован.", parse_mode='Markdown')
         else:
             bot.reply_to(message, 'Некорректный формат ID пользователя.', parse_mode='Markdown')
@@ -189,7 +196,7 @@ def unban_user(message):
         if user_id.isdigit():
             user_id = int(user_id)
             if user_id in banned_users:
-                banned_users.discard(user_id)
+                del banned_users[user_id]  # удаляем запись из словаря
                 bot.reply_to(message, f"✅ Пользователь с ID `{user_id}` разблокирован.", parse_mode='Markdown')
             else:
                 bot.reply_to(message, f"Пользователь с ID `{user_id}` не заблокирован.", parse_mode='Markdown')
@@ -207,12 +214,12 @@ def list_banned_users(message):
             return
 
         ban_list = '🔥 *Список заблокированных пользователей:*\n\n'
-        for user_id in banned_users:
+        for user_id, timestamp in banned_users.items():
             user = bot.get_chat(user_id)
             first_name = user.first_name or ''
             last_name = user.last_name or ''
             full_name = f'{first_name} {last_name}'
-            ban_list += f"• {user_id}: {full_name}\n"
+            ban_list += f"• {user_id}: {full_name}, Заблокирован {timestamp.strftime('%Y-%m-%d %H:%M:%S')} UTC\n"
 
         bot.send_message(message.chat.id, ban_list, parse_mode='Markdown')
     else:
